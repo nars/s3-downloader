@@ -1,0 +1,50 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '3.5.6'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.nxber.tools'
+version = '0.0.1-SNAPSHOT'
+description = 'AWS S3 compatible client'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.thymeleaf.extras:thymeleaf-extras-java8time:3.0.4.RELEASE'
+
+	implementation platform('software.amazon.awssdk:bom:2.36.0')
+	implementation 'software.amazon.awssdk:s3'
+	implementation 'software.amazon.awssdk:sts'
+	implementation 'software.amazon.awssdk:s3-transfer-manager'
+	implementation 'software.amazon.awssdk:apache-client'
+
+	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+	
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+tasks.register('tailwindBuild', Exec) {
+	workingDir = projectDir
+	commandLine 'npx', 'tailwindcss@3.4.9', '-c', 'tailwind.config.js', '-i', './src/main/resources/static/css/tailwind-source.css', '-o', './src/main/resources/static/css/tailwind.min.css', '--minify'
+}
+
+tasks.named('processResources') {
+	dependsOn tasks.named('tailwindBuild')
+}

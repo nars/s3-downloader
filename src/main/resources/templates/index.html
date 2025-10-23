@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>S3 Downloader</title>
+	<link rel="stylesheet" th:href="@{/css/tailwind.min.css}">
+	<script defer th:src="@{/js/app.js}"></script>
+</head>
+<body class="bg-slate-100 text-slate-900">
+	<header class="bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow">
+		<div class="max-w-6xl mx-auto px-6 py-5 flex flex-wrap items-center justify-between gap-4">
+			<div>
+				<h1 class="text-2xl font-semibold tracking-tight">S3 Downloader</h1>
+				<p class="text-sm text-slate-300">Browse, search, and download from any S3-compatible storage source.</p>
+			</div>
+			<a href="https://github.com/nars/s3-downloader" target="_blank" rel="noopener" class="inline-flex items-center gap-2 rounded-md bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/40">
+				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="h-4 w-4">
+					<path fill-rule="evenodd" d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.483 0-.237-.009-.868-.014-1.703-2.782.604-3.369-1.342-3.369-1.342-.455-1.157-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.004.071 1.531 1.031 1.531 1.031.892 1.528 2.341 1.087 2.91.832.091-.647.35-1.088.637-1.338-2.22-.253-4.555-1.112-4.555-4.944 0-1.091.39-1.984 1.029-2.682-.103-.253-.446-1.272.098-2.65 0 0 .84-.269 2.75 1.025A9.564 9.564 0 0 1 12 6.844c.851.004 1.708.115 2.508.337 1.909-1.294 2.748-1.025 2.748-1.025.546 1.378.203 2.397.1 2.65.64.698 1.028 1.59 1.028 2.682 0 3.842-2.339 4.688-4.566 4.937.359.309.679.919.679 1.852 0 1.337-.012 2.417-.012 2.744 0 .268.18.58.688.481C19.138 20.162 22 16.414 22 12c0-5.523-4.477-10-10-10Z" clip-rule="evenodd" />
+				</svg>
+				<span>View on GitHub</span>
+			</a>
+		</div>
+	</header>
+	<main class="max-w-6xl mx-auto px-6 py-8 space-y-6">
+		<section class="bg-white shadow rounded-lg p-6 space-y-4">
+			<form id="bucketForm" th:action="@{/browser}" method="get" class="grid gap-4 md:grid-cols-3">
+				<div class="space-y-2">
+					<label for="sourceSelect" class="text-sm font-medium text-slate-600">Source</label>
+					<select id="sourceSelect" name="source" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none">
+						<option th:each="source : ${sources}" th:value="${source.name()}" th:text="${source.displayName()}" th:selected="${source.name() == activeSource}"></option>
+					</select>
+				</div>
+				<div class="space-y-2">
+					<label for="bucketSelect" class="text-sm font-medium text-slate-600">Bucket</label>
+					<select id="bucketSelect" name="bucket" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none">
+						<option th:each="bucket : ${buckets}" th:value="${bucket.name()}" th:text="${bucket.name()}" th:selected="${bucket.name() == activeBucket}"></option>
+					</select>
+				</div>
+				<div class="space-y-2">
+					<label for="queryInput" class="text-sm font-medium text-slate-600">Search</label>
+					<div class="flex gap-2">
+						<input id="queryInput" name="query" type="search" placeholder="Search within prefix" th:value="${query}" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none">
+						<button type="submit" class="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-slate-800">Search</button>
+					</div>
+				</div>
+				<input type="hidden" name="prefix" th:value="${listing.prefix()}">
+				<input type="hidden" name="tokenStack" value="">
+				<input type="hidden" name="showDetails" th:value="${showDetails}">
+			</form>
+				<div class="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
+					<div class="flex items-center gap-2">
+						<span class="font-semibold">Source:</span>
+						<span th:text="${activeSourceDisplayName}"></span>
+					</div>
+				<div class="flex items-center gap-2" th:if="${#lists.isEmpty(breadcrumbs)}">
+					<span class="font-semibold">Path:</span>
+					<span>root</span>
+				</div>
+				<nav class="flex flex-wrap items-center gap-2" th:if="${!#lists.isEmpty(breadcrumbs)}">
+					<span class="font-semibold">Path:</span>
+					<a th:href="@{/browser(source=${activeSource}, bucket=${activeBucket})}" class="text-slate-600 hover:text-slate-900">root</a>
+					<span th:each="crumb : ${breadcrumbs}" class="flex items-center gap-2">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4 text-slate-400">
+							<path fill-rule="evenodd" d="M7.293 2.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+						</svg>
+						<a th:href="@{/browser(source=${activeSource}, bucket=${activeBucket}, prefix=${crumb.prefix()})}" th:text="${crumb.label()}" class="text-slate-600 hover:text-slate-900"></a>
+					</span>
+				</nav>
+				<div th:if="${!#strings.isEmpty(parentPrefix)}">
+					<a th:href="@{/browser(source=${activeSource}, bucket=${activeBucket}, prefix=${parentPrefix})}" class="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
+							<path fill-rule="evenodd" d="M12.707 15.707a1 1 0 01-1.414 0L6.293 10.707a1 1 0 010-1.414l5-5a1 1 0 111.414 1.414L8.414 10l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+						</svg>
+						<span>Up one level</span>
+					</a>
+				</div>
+			</div>
+		</section>
+		<section class="bg-white shadow rounded-lg">
+			<form id="selectionForm" th:action="@{/download/batch}" method="post" class="overflow-hidden">
+				<input type="hidden" name="source" th:value="${activeSource}">
+				<input type="hidden" name="bucket" th:value="${activeBucket}">
+				<div class="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-6 py-4">
+					<div class="flex items-center gap-3 text-sm text-slate-600">
+						<label class="inline-flex items-center gap-2">
+							<input id="selectAll" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900">
+							<span>Select all</span>
+						</label>
+						<span th:text="${#lists.size(listing.objects())} + ' files'" class="hidden sm:inline"></span>
+					</div>
+					<div class="flex flex-wrap items-center gap-2">
+						<a th:href="@{/browser(source=${activeSource}, bucket=${activeBucket}, prefix=${listing.prefix()}, tokenStack=${listing.continuationToken()}, query=${query}, showDetails=${!showDetails})}" class="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
+								<path d="M3 4a1 1 0 00-1 1v10a1 1 0 001.555.832L7.5 14.12l3.945 1.712A1 1 0 0013 15V5a1 1 0 00-1.555-.832L7.5 6.88 3.555 5.168A1 1 0 003 5v-.2zM15 5a1 1 0 10-2 0v10a1 1 0 102 0V5z" />
+							</svg>
+							<span th:text="${showDetails ? 'Hide details' : 'Show details'}"></span>
+						</a>
+						<button id="previewToggle" type="button" aria-pressed="false" class="inline-flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
+								<path d="M10 4.5c3.315 0 6.167 1.987 7.5 5.5-1.333 3.513-4.185 5.5-7.5 5.5s-6.167-1.987-7.5-5.5c1.333-3.513 4.185-5.5 7.5-5.5zm0 1.5c-1.932 0-3.5 1.568-3.5 3.5s1.568 3.5 3.5 3.5 3.5-1.568 3.5-3.5-1.568-3.5-3.5-3.5zm0 2c.828 0 1.5.672 1.5 1.5S10.828 11 10 11s-1.5-.672-1.5-1.5S9.172 8 10 8z" />
+							</svg>
+							<span>Show previews</span>
+						</button>
+						<button id="downloadSelectedButton" type="submit" class="inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow disabled:cursor-not-allowed disabled:bg-slate-300">
+							<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-4 w-4">
+								<path d="M3 14a2 2 0 012-2h2v-2H5a4 4 0 00-4 4v1a1 1 0 001 1h16a1 1 0 001-1v-1a4 4 0 00-4-4h-2v2h2a2 2 0 012 2v1H3v-1z" />
+								<path d="M7 3a1 1 0 011-1h4a1 1 0 011 1v6h1.586a1 1 0 01.707 1.707l-4.586 4.586a1 1 0 01-1.414 0L4.707 10.707A1 1 0 015.414 9H7V3z" />
+							</svg>
+							<span>Download selected</span>
+						</button>
+					</div>
+				</div>
+				<div class="overflow-x-auto">
+					<table class="min-w-full divide-y divide-slate-200 text-sm">
+						<thead class="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+							<tr>
+								<th class="px-6 py-3">Name</th>
+								<th class="px-6 py-3" th:if="${showDetails}">Size</th>
+								<th class="px-6 py-3" th:if="${showDetails}">Last modified</th>
+								<th class="px-6 py-3 text-right">Actions</th>
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-slate-200 bg-white">
+							<tr th:if="${listing.folders().isEmpty() and listing.objects().isEmpty()}" class="text-center text-slate-500">
+								<td class="px-6 py-10" th:attr="colspan=${showDetails ? 4 : 2}">
+									<div class="flex flex-col items-center gap-2">
+										<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="h-10 w-10 text-slate-300">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 00-2.25 2.25v9A2.25 2.25 0 007.5 21.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25H15" />
+											<path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25a3 3 0 003 3h0a3 3 0 003-3m-3 0V3.75" />
+										</svg>
+										<p>No objects found in this location.</p>
+									</div>
+								</td>
+							</tr>
+							<tr th:each="folder : ${listing.folders()}" class="hover:bg-slate-50">
+								<td class="px-6 py-4">
+									<div class="flex items-center gap-3">
+										<span class="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
+											<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-5 w-5 text-slate-500">
+												<path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4l2 2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
+											</svg>
+										</span>
+										<div>
+											<a th:href="@{/browser(source=${activeSource}, bucket=${activeBucket}, prefix=${folder.prefix()})}" th:text="${folder.name()}" class="font-medium text-slate-800 hover:text-slate-900"></a>
+											<p class="text-xs text-slate-400" th:text="${folder.prefix()}"></p>
+										</div>
+									</div>
+								</td>
+								<td class="px-6 py-4 text-slate-600" th:if="${showDetails}" th:text="${@byteFormatter.format(folder.size())}"></td>
+								<td class="px-6 py-4 text-slate-600" th:if="${showDetails}" th:text="${folder.lastModified() != null ? #temporals.format(folder.lastModified(), 'yyyy-MM-dd HH:mm:ss') : '—'}"></td>
+								<td class="px-6 py-4">
+									<div class="flex justify-end gap-2">
+										<a th:href="@{/browser(source=${activeSource}, bucket=${activeBucket}, prefix=${folder.prefix()})}" class="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">Open</a>
+										<a th:href="@{/download/folder(source=${activeSource}, bucket=${activeBucket}, prefix=${folder.prefix()})}" class="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800">Download</a>
+									</div>
+								</td>
+							</tr>
+							<tr th:each="object : ${listing.objects()}" class="hover:bg-slate-50">
+								<td class="px-6 py-4">
+									<div class="flex items-center gap-3">
+										<input type="checkbox" name="keys" th:value="${object.key()}" class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900">
+										<div class="hidden preview-thumb" th:if="${object.previewable()}" th:attr="data-preview-url=@{/preview(source=${activeSource}, bucket=${activeBucket}, key=${object.key()})}">
+											<img alt="" loading="lazy" class="h-12 w-12 rounded-md object-cover ring-1 ring-slate-200">
+										</div>
+										<div>
+											<a th:href="@{/download(source=${activeSource}, bucket=${activeBucket}, key=${object.key()})}" th:text="${object.name()}" class="font-medium text-slate-800 hover:text-slate-900"></a>
+											<p class="text-xs text-slate-400" th:text="${object.key()}"></p>
+										</div>
+									</div>
+								</td>
+								<td class="px-6 py-4 text-slate-600" th:if="${showDetails}" th:text="${@byteFormatter.format(object.size())}"></td>
+								<td class="px-6 py-4 text-slate-600" th:if="${showDetails}" th:text="${object.lastModified() != null ? #temporals.format(object.lastModified(), 'yyyy-MM-dd HH:mm:ss') : '—'}"></td>
+								<td class="px-6 py-4">
+									<div class="flex justify-end gap-2">
+										<a th:href="@{/download(source=${activeSource}, bucket=${activeBucket}, key=${object.key()})}" class="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800">Download</a>
+									</div>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+			</form>
+			<div class="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-6 py-4">
+				<div class="text-xs text-slate-500" th:text="${#lists.size(listing.folders()) + ' folders, ' + #lists.size(listing.objects()) + ' files on this page'}"></div>
+				<div class="flex items-center gap-2">
+					<form th:if="${!#strings.isEmpty(listing.previousContinuationToken())}" th:action="@{/browser}" method="get">
+						<input type="hidden" name="source" th:value="${activeSource}">
+						<input type="hidden" name="bucket" th:value="${activeBucket}">
+						<input type="hidden" name="prefix" th:value="${listing.prefix()}">
+						<input type="hidden" name="tokenStack" th:value="${listing.previousContinuationToken()}">
+						<input type="hidden" name="query" th:value="${query}">
+						<input type="hidden" name="showDetails" th:value="${showDetails}">
+						<button type="submit" class="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">Previous</button>
+					</form>
+					<form th:if="${listing.hasNext()}" th:action="@{/browser}" method="get">
+						<input type="hidden" name="source" th:value="${activeSource}">
+						<input type="hidden" name="bucket" th:value="${activeBucket}">
+						<input type="hidden" name="prefix" th:value="${listing.prefix()}">
+						<input type="hidden" name="tokenStack" th:value="${listing.nextContinuationToken()}">
+						<input type="hidden" name="query" th:value="${query}">
+						<input type="hidden" name="showDetails" th:value="${showDetails}">
+						<button type="submit" class="rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">Next</button>
+					</form>
+				</div>
+			</div>
+		</section>
+	</main>
+</body>
+</html>
